@@ -1,0 +1,4 @@
+git add filename
+git commit -m "message goes here"
+git push origin
+

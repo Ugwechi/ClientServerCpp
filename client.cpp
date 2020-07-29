@@ -1,3 +1,4 @@
+#include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -6,42 +7,106 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include <thread>
+#include <signal.h>
 #include <iostream>
 #include <sstream>
+#include <exception>
+#include <fstream>
 
-int
-main()
+
+void peer(int sockfd, std::string path); //this is the thread service
+void server_signal_handler(int sig)
 {
+        std::cout << "received signal" << std::endl;
+        exit(0);
+}
+
+int main(int argc, char** argv)
+{
+if(argc !=4)
+{
+    std::cerr << "ERROR: Invalid number of inputs.\nUsage : ./client port serveradd file" << '\n';
+    exit(1);
+}
+
+
+    std::string address = "";
+    std::string filename = "";
+    int portno = 0;
+    try{
+      portno = std::stoi(std::string(argv[1]));
+      address = std::string(argv[2]);
+      filename = std::string(argv[3]);
+    }catch(std::exception &e){
+      std::cout << e.what() << '\n';
+    }
+    
+    if(portno <= 1023){
+        //error message
+        std::cerr << "ERROR: You can use only port numbers greater than 1023 " << '\n';
+        exit(1);
+    }
+
+  // Register signal and signal handler
+   struct sigaction sigIntHandler;
+   sigIntHandler.sa_handler = server_signal_handler;
+   sigemptyset(&sigIntHandler.sa_mask);
+   sigIntHandler.sa_flags = 0;
+   sigaction(SIGINT, &sigIntHandler, NULL);
+   sigaction(SIGTERM, &sigIntHandler, NULL);
+
   // create a socket using TCP IP
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-  // struct sockaddr_in addr;
-  // addr.sin_family = AF_INET;
-  // addr.sin_port = htons(40001);     // short, network byte order
-  // addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  // memset(addr.sin_zero, '\0', sizeof(addr.sin_zero));
-  // if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-  //   perror("bind");
-  //   return 1;
-  // }
+  struct sockaddr_in serverAddr;  
+if(inet_addr(address.c_str()) < 0)
+{
+struct hostent *he;
+struct in_addr **addr_list;
+//resolve the hostname, its not an ip address
+if ( (he = gethostbyname( address.c_str() ) ) == NULL)
+{
+//gethostbyname failed
+std::cerr << "Failed to resolve hostname\n";
+return 1;
+}
+//Cast the h_addr_list to in_addr , since h_addr_list also has the ip address in long format only
+addr_list = (struct in_addr **) he->h_addr_list;
 
-  struct sockaddr_in serverAddr;
+for(int i = 0; addr_list[i] != NULL; i++)
+{
+serverAddr.sin_addr = *addr_list[i];
+break;
+}
+
+}
+else
+{
+  serverAddr.sin_addr.s_addr = inet_addr(address.c_str());
+}
   serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = htons(40000);     // short, network byte order
-  serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  serverAddr.sin_port = htons(portno);     // short, network byte order
   memset(serverAddr.sin_zero, '\0', sizeof(serverAddr.sin_zero));
+struct timeval timeout;      
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
 
+    if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+                sizeof(timeout)) < 0){
+    std::cerr << "ERROR: setsockopt send timeout" << '\n';
+    return 1;
+  }
   // connect to the server
   if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-    perror("connect");
+    std::cerr << "unable to connect";
     return 2;
   }
 
   struct sockaddr_in clientAddr;
   socklen_t clientAddrLen = sizeof(clientAddr);
   if (getsockname(sockfd, (struct sockaddr *)&clientAddr, &clientAddrLen) == -1) {
-    perror("getsockname");
+    std::cerr << "getsockname failed";
     return 3;
   }
 
@@ -52,35 +117,29 @@ main()
 
 
   // send/receive data to/from connection
-  bool isEnd = false;
   std::string input;
-  char buf[20] = {0};
   std::stringstream ss;
+  std::streampos size;
+  char * memblock;
 
-  while (!isEnd) {
-    memset(buf, '\0', sizeof(buf));
-
-    std::cout << "send: ";
-    std::cin >> input;
-    if (send(sockfd, input.c_str(), input.size(), 0) == -1) {
-      perror("send");
-      return 4;
-    }
-
-
-    if (recv(sockfd, buf, 20, 0) == -1) {
-      perror("recv");
-      return 5;
-    }
-    ss << buf << std::endl;
-    std::cout << "echo: ";
-    std::cout << buf << std::endl;
-
-    if (ss.str() == "close\n")
-      break;
-
-    ss.str("");
+  std::ifstream file (filename, std::ios::in|std::ios::binary|std::ios::ate);
+  if (file.is_open())
+  {
+    size = file.tellg();
+    memblock = new char [1024];
+    file.seekg (0, std::ios::beg);
+    while (file.read (memblock, 1024)) {
+        if (send(sockfd, (void*)memblock, 1024, 0) == -1) {
+          std::cerr << "ERROR : send failed";
+          return 4;
+        }
+        memset(memblock,0,1024);
+      }    
+    file.close();
+  std::cout << "the entire file content has been sent";
+    delete[] memblock;
   }
+  
 
   close(sockfd);
 
