@@ -43,12 +43,12 @@ if(argc !=4)
     }
     
     if(portno <= 1023){
-        //error message
-        std::cerr << "ERROR: You can use only port numbers greater than 1023 " << '\n';
+        //this displays error message
+        std::cerr << "ERROR: port numbers greater than 1023 are allowed" << '\n';
         exit(1);
     }
 
-  // Register signal and signal handler
+  // this registers signal and signal handler
    struct sigaction sigIntHandler;
    sigIntHandler.sa_handler = server_signal_handler;
    sigemptyset(&sigIntHandler.sa_mask);
@@ -94,7 +94,7 @@ struct timeval timeout;
 
     if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
                 sizeof(timeout)) < 0){
-    std::cerr << "ERROR: setsockopt send timeout" << '\n';
+    std::cerr << "ERROR: socket sent timeout" << '\n';
     return 1;
   }
   // connect to the server

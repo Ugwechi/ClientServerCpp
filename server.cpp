@@ -41,7 +41,7 @@ if(argc !=3)
     }
     
     if(portno <= 1023){
-        //error message
+        //this displays error message
         std::cerr << "ERROR: You can use only port numbers greater than 1023 " << '\n';
         exit(1);
     }
@@ -57,7 +57,7 @@ if(argc !=3)
   // this creates a socket using TCP IP
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-  // this allows others to reuse the address
+  // this allows others to reuse the address and includes the time delay of 10 secs as required
   int yes = 1;
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
     std::cerr << "ERROR: setsockopt" << '\n';
@@ -69,13 +69,13 @@ if(argc !=3)
 
     if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
                 sizeof(timeout)) < 0){
-    std::cerr << "ERROR: setsockopt receive timeout" << '\n';
+    std::cerr << "ERROR: socket receipt timeout" << '\n';
     return 1;
   }
   // this allows to bind an address to the socket
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(portno);     //  convert the port portno value to network byte order
+  addr.sin_port = htons(portno);     //  this allows to convert the port portno value to network byte order
   addr.sin_addr.s_addr = inet_addr("127.0.0.1");
   memset(addr.sin_zero, '\0', sizeof(addr.sin_zero));
 
