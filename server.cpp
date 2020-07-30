@@ -40,9 +40,9 @@ if(argc !=3)
       std::cout << e.what() << '\n';
     }
     
-    if(portno <= 1023){
+    if(portno <= 1023 || portno > 65535){
         //this displays error message
-        std::cerr << "ERROR: You can use only port numbers greater than 1023 " << '\n';
+        std::cerr << "ERROR: You can use only port numbers greater than 1023 and less than 65536" << '\n';
         exit(1);
     }
 
@@ -51,8 +51,9 @@ if(argc !=3)
    sigIntHandler.sa_handler = server_signal_handler;
    sigemptyset(&sigIntHandler.sa_mask);
    sigIntHandler.sa_flags = 0;
-   sigaction(SIGINT, &sigIntHandler, NULL);
-   sigaction(SIGTERM, &sigIntHandler, NULL);
+   sigaction(SIGINT, &sigIntHandler, NULL); //Program interrupt, usually initiated by the user
+   sigaction(SIGQUIT, &sigIntHandler, NULL); //Program interrupt, usually initiated by the user
+   sigaction(SIGTERM, &sigIntHandler, NULL); //termination request, sent to the program
 
   // this creates a socket using TCP IP
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -88,6 +89,7 @@ if(argc !=3)
     return 3;
   }
 int connectionid=0;
+std::cout << "Waiting for connection..." << std::endl;
   while(true){
   // set socket to listen status
     std::stringstream out;
@@ -99,7 +101,6 @@ int connectionid=0;
     int clientSockfd = accept(sockfd, (struct sockaddr*)&clientAddr, &clientAddrSize);
     // this allows to check for errors
     if (clientSockfd == -1) {
-      //std::cerr << "ERROR: accept" << '\n';
       continue;
     }
 
@@ -117,24 +118,27 @@ int connectionid=0;
 void peer(int clientSockfd, std::string path){
 
   // read/write data from/into the connection
-  bool isEnd = false;
   char buf[1024] = {0};
   std::ofstream outfile;
   //open the output file
   try{
-  outfile.open(path, std::ios::app | std::ios::out | std::ios::binary); // append instead of overwrite
+  outfile.open(path, std::ios::out | std::ios::binary); // append instead of overwrite
   }catch(std::exception &e){
-    std::cerr << "ERROR: unable to listen on port " << e.what() << '\n';
+    std::cerr << "ERROR: unable to open file " << e.what() << '\n';
     return;
   }
  if (outfile.is_open())
   {
-  while (!isEnd) {
+  while (true) {
     memset(buf, 0, 1024);
     //read 1kb at a time
     int read = recv(clientSockfd, buf, 1024, 0);
     if ( read == -1) {
-      std::cout << "=== End of File read last input == -1 ===\n";
+      std::cerr << "ERROR : aborting connection...\n";
+	  outfile.write("ERROR",5);
+	  outfile.close();
+	  close(clientSockfd);
+	  return;
       break;
     }
     else
